@@ -1,0 +1,81 @@
+-- V1__init.sql
+-- Initial schema setup for the E-commerce MVP
+
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE categories (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    parent_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE products (
+    id UUID PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    base_price DECIMAL(10,2) NOT NULL,
+    category_id UUID REFERENCES categories(id) ON DELETE RESTRICT,
+    image_url VARCHAR(512),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE variants (
+    id UUID PRIMARY KEY,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    sku VARCHAR(100) UNIQUE NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    stock_quantity INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE variant_attributes (
+    id UUID PRIMARY KEY,
+    variant_id UUID NOT NULL REFERENCES variants(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL -- e.g., 'Color', 'Size'
+);
+
+CREATE TABLE attribute_options (
+    id UUID PRIMARY KEY,
+    variant_attribute_id UUID NOT NULL REFERENCES variant_attributes(id) ON DELETE CASCADE,
+    value VARCHAR(100) NOT NULL -- e.g., 'Red', 'XL'
+);
+
+CREATE TABLE orders (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    subtotal DECIMAL(10,2) NOT NULL,
+    total DECIMAL(10,2) NOT NULL,
+    status VARCHAR(50) NOT NULL, -- PENDING, PAID, CANCELLED
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    variant_id UUID NOT NULL REFERENCES variants(id) ON DELETE RESTRICT,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL
+);
+
+CREATE TABLE payments (
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    external_reference VARCHAR(255),
+    payment_method VARCHAR(50),
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
