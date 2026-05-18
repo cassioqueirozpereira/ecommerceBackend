@@ -1,101 +1,80 @@
 package com.ecommerce.backend.service;
 
-import com.ecommerce.backend.dto.OrderDTOs;
-import com.ecommerce.backend.entity.Order;
-import com.ecommerce.backend.entity.OrderItem;
-import com.ecommerce.backend.entity.User;
-import com.ecommerce.backend.entity.Variant;
-import com.ecommerce.backend.enums.OrderStatus;
+import com.ecommerce.backend.dto.OrderItemRequestDTO;
+import com.ecommerce.backend.dto.OrderRequestDTO;
+import com.ecommerce.backend.entity.*;
 import com.ecommerce.backend.repository.OrderRepository;
+import com.ecommerce.backend.repository.ProductRepository;
 import com.ecommerce.backend.repository.UserRepository;
 import com.ecommerce.backend.repository.VariantRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final UserRepository userRepository;
+    private final ProductRepository productRepository;
     private final VariantRepository variantRepository;
-
-    public OrderService(OrderRepository orderRepository, UserRepository userRepository, VariantRepository variantRepository) {
-        this.orderRepository = orderRepository;
-        this.userRepository = userRepository;
-        this.variantRepository = variantRepository;
-    }
+    private final UserRepository userRepository;
 
     @Transactional
-    public OrderDTOs.OrderResponse createOrder(String userEmail, OrderDTOs.OrderRequest request) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    public Order createOrder(UUID userId, OrderRequestDTO orderRequestDTO) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         Order order = new Order();
         order.setUser(user);
-        order.setStatus(OrderStatus.PENDING);
+        order.setStatus("PENDING");
 
         BigDecimal total = BigDecimal.ZERO;
 
-        for (OrderDTOs.OrderItemRequest itemReq : request.getItems()) {
-            Variant variant = variantRepository.findById(itemReq.getVariantId())
-                    .orElseThrow(() -> new RuntimeException("Variant not found"));
+        for (OrderItemRequestDTO itemDto : orderRequestDTO.getItems()) {
+            Product product = productRepository.findById(itemDto.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+            
+            Variant variant = variantRepository.findById(itemDto.getVariantId())
+                    .orElseThrow(() -> new IllegalArgumentException("Variant not found"));
 
-            if (variant.getStockQuantity() < itemReq.getQuantity()) {
-                throw new RuntimeException("Insufficient stock for variant: " + variant.getSku());
+            if (variant.getStock() < itemDto.getQuantity()) {
+                throw new IllegalArgumentException("Not enough stock for variant: " + variant.getSku());
             }
 
-            variant.setStockQuantity(variant.getStockQuantity() - itemReq.getQuantity());
+            // Reduce stock
+            variant.setStock(variant.getStock() - itemDto.getQuantity());
 
+            // Create OrderItem with SNAPSHOT price from Variant
             OrderItem orderItem = new OrderItem();
-            orderItem.setOrder(order);
+            orderItem.setProduct(product);
             orderItem.setVariant(variant);
-            orderItem.setQuantity(itemReq.getQuantity());
-            orderItem.setUnitPrice(variant.getPrice());
+            orderItem.setQuantity(itemDto.getQuantity());
+            
+            // Hard-copy the price at this exact moment
+            BigDecimal unitPrice = variant.getPrice();
+            orderItem.setUnitPrice(unitPrice);
+            
+            BigDecimal itemTotal = unitPrice.multiply(BigDecimal.valueOf(itemDto.getQuantity()));
+            orderItem.setTotalPrice(itemTotal);
 
-            order.getItems().add(orderItem);
-
-            total = total.add(variant.getPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity())));
+            order.addItem(orderItem);
+            total = total.add(itemTotal);
         }
 
         order.setSubtotal(total);
         order.setTotal(total);
 
-        Order savedOrder = orderRepository.save(order);
-        return mapToDTO(savedOrder);
-    }
+        // Optional: Create initial payment record
+        Payment payment = new Payment();
+        payment.setPaymentMethod(orderRequestDTO.getPaymentMethod());
+        payment.setStatus("PENDING");
+        payment.setAmount(total);
+        order.addPayment(payment);
 
-    public List<OrderDTOs.OrderResponse> getUserOrders(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
-        return orders.stream().map(this::mapToDTO).collect(Collectors.toList());
-    }
-
-    private OrderDTOs.OrderResponse mapToDTO(Order order) {
-        OrderDTOs.OrderResponse dto = new OrderDTOs.OrderResponse();
-        dto.setId(order.getId());
-        dto.setSubtotal(order.getSubtotal());
-        dto.setTotal(order.getTotal());
-        dto.setStatus(order.getStatus());
-        dto.setCreatedAt(order.getCreatedAt());
-
-        List<OrderDTOs.OrderItemResponse> items = order.getItems().stream().map(item -> {
-            OrderDTOs.OrderItemResponse itemDto = new OrderDTOs.OrderItemResponse();
-            itemDto.setId(item.getId());
-            itemDto.setProductTitle(item.getVariant().getProduct().getTitle());
-            itemDto.setVariantSku(item.getVariant().getSku());
-            itemDto.setQuantity(item.getQuantity());
-            itemDto.setUnitPrice(item.getUnitPrice());
-            return itemDto;
-        }).collect(Collectors.toList());
-
-        dto.setItems(items);
-        return dto;
+        return orderRepository.save(order);
     }
 }

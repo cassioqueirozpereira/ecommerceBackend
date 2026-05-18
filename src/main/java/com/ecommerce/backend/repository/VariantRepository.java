@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface VariantRepository extends JpaRepository<Variant, UUID> {
     Optional<Variant> findBySku(String sku);
+    boolean existsBySku(String sku);
 }

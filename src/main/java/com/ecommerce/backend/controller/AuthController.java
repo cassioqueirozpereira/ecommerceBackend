@@ -1,31 +1,32 @@
 package com.ecommerce.backend.controller;
 
-import com.ecommerce.backend.dto.AuthDTOs;
+import com.ecommerce.backend.dto.JwtAuthenticationResponseDTO;
+import com.ecommerce.backend.dto.LoginRequestDTO;
+import com.ecommerce.backend.dto.RegisterRequestDTO;
+import com.ecommerce.backend.entity.User;
 import com.ecommerce.backend.service.AuthService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
 
-    public AuthController(AuthService authService) {
-        this.authService = authService;
+    @PostMapping("/login")
+    public ResponseEntity<JwtAuthenticationResponseDTO> authenticateUser(@Valid @RequestBody LoginRequestDTO loginRequest) {
+        String token = authService.authenticateUser(loginRequest);
+        return ResponseEntity.ok(new JwtAuthenticationResponseDTO(token));
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthDTOs.AuthResponse> register(@Valid @RequestBody AuthDTOs.RegisterRequest request) {
-        return ResponseEntity.ok(authService.register(request));
-    }
-
-    @PostMapping("/login")
-    public ResponseEntity<AuthDTOs.AuthResponse> login(@Valid @RequestBody AuthDTOs.LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequestDTO registerRequest) {
+        User result = authService.registerUser(registerRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 }

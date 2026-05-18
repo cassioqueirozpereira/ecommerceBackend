@@ -1,73 +1,75 @@
 package com.ecommerce.backend.service;
 
-import com.ecommerce.backend.dto.CategoryDTOs;
-import com.ecommerce.backend.dto.ProductDTOs;
-import com.ecommerce.backend.entity.AttributeOption;
-import com.ecommerce.backend.entity.Category;
+import com.ecommerce.backend.dto.ProductDTO;
 import com.ecommerce.backend.entity.Product;
 import com.ecommerce.backend.entity.Variant;
+import com.ecommerce.backend.repository.CategoryRepository;
 import com.ecommerce.backend.repository.ProductRepository;
+import com.ecommerce.backend.repository.VariantRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.UUID;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
+    private final VariantRepository variantRepository;
 
-    public ProductService(ProductRepository productRepository) {
-        this.productRepository = productRepository;
-    }
+    @Transactional
+    public Product createProduct(ProductDTO productDTO) {
+        if (productRepository.existsBySlug(productDTO.getSlug())) {
+            throw new IllegalArgumentException("Product with this slug already exists");
+        }
 
-    public List<ProductDTOs.ProductResponse> getAllProducts(String search) {
-        List<Product> products;
-        if (search != null && !search.trim().isEmpty()) {
-            products = productRepository.searchByTitleOrDescription(search);
+        Product product = new Product();
+        product.setName(productDTO.getName());
+        product.setSlug(productDTO.getSlug());
+        product.setDescription(productDTO.getDescription());
+        product.setBasePrice(productDTO.getBasePrice());
+        product.setPromotionalPrice(productDTO.getPromotionalPrice());
+        product.setImages(productDTO.getImages());
+
+        if (productDTO.getCategory() != null && productDTO.getCategory().getId() != null) {
+            product.setCategory(categoryRepository.findById(productDTO.getCategory().getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Category not found")));
+        }
+
+        Product savedProduct = productRepository.save(product);
+
+        // If no variants provided, create a default one
+        if (productDTO.getVariants() == null || productDTO.getVariants().isEmpty()) {
+            Variant defaultVariant = new Variant();
+            defaultVariant.setProduct(savedProduct);
+            defaultVariant.setName("Default");
+            defaultVariant.setSku(product.getSlug().toUpperCase() + "-DEFAULT");
+            defaultVariant.setPrice(product.getPromotionalPrice() != null ? product.getPromotionalPrice() : product.getBasePrice());
+            defaultVariant.setStock(0);
+            variantRepository.save(defaultVariant);
+            savedProduct.addVariant(defaultVariant);
         } else {
-            products = productRepository.findAll();
-        }
-        return products.stream().map(this::mapToDTO).collect(Collectors.toList());
-    }
-
-    public ProductDTOs.ProductResponse getProductBySlug(String slug) {
-        Product product = productRepository.findBySlug(slug)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-        return mapToDTO(product);
-    }
-
-    private ProductDTOs.ProductResponse mapToDTO(Product product) {
-        ProductDTOs.ProductResponse dto = new ProductDTOs.ProductResponse();
-        dto.setId(product.getId());
-        dto.setTitle(product.getTitle());
-        dto.setSlug(product.getSlug());
-        dto.setDescription(product.getDescription());
-        dto.setBasePrice(product.getBasePrice());
-        dto.setImageUrl(product.getImageUrl());
-
-        Category cat = product.getCategory();
-        if (cat != null) {
-            dto.setCategory(new CategoryDTOs.CategoryResponse(cat.getId(), cat.getName(), cat.getSlug(), cat.getParent() != null ? cat.getParent().getId() : null));
+            productDTO.getVariants().forEach(v -> {
+                Variant variant = new Variant();
+                variant.setProduct(savedProduct);
+                variant.setName(v.getName());
+                variant.setSku(v.getSku() != null ? v.getSku() : UUID.randomUUID().toString());
+                variant.setPrice(v.getPrice() != null ? v.getPrice() : product.getBasePrice());
+                variant.setStock(v.getStock() != null ? v.getStock() : 0);
+                variantRepository.save(variant);
+                savedProduct.addVariant(variant);
+            });
         }
 
-        List<ProductDTOs.VariantResponse> variants = product.getVariants().stream().map(v -> {
-            ProductDTOs.VariantResponse vDto = new ProductDTOs.VariantResponse();
-            vDto.setId(v.getId());
-            vDto.setSku(v.getSku());
-            vDto.setPrice(v.getPrice());
-            vDto.setStockQuantity(v.getStockQuantity());
-
-            List<ProductDTOs.VariantAttributeResponse> attrs = v.getAttributes().stream().map(va -> {
-                List<String> options = va.getOptions().stream().map(AttributeOption::getValue).collect(Collectors.toList());
-                return new ProductDTOs.VariantAttributeResponse(va.getName(), options);
-            }).collect(Collectors.toList());
-
-            vDto.setAttributes(attrs);
-            return vDto;
-        }).collect(Collectors.toList());
-
-        dto.setVariants(variants);
-        return dto;
+        return savedProduct;
+    }
+    
+    public List<Product> getAllProducts() {
+        return productRepository.findAll();
     }
 }
