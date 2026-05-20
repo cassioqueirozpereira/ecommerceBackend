@@ -1,0 +1,7 @@
+CREATE TABLE newsletter (
+    id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    source VARCHAR(255)
+);
