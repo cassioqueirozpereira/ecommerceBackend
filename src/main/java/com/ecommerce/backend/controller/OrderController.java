@@ -11,6 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
@@ -20,8 +23,16 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<Order> createOrder(@Valid @RequestBody OrderRequestDTO orderRequestDTO,
-                                             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        Order order = orderService.createOrder(userDetails.getUser().getId(), orderRequestDTO);
+                                             @AuthenticationPrincipal CustomUserDetails userDetails,
+                                             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        Order order = orderService.createOrder(userDetails.getUser().getId(), orderRequestDTO, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(order);
+    }
+
+    @GetMapping("/{id}/pay")
+    public ResponseEntity<Map<String, String>> getPaymentLink(@PathVariable UUID id,
+                                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
+        String paymentUrl = orderService.getPaymentLink(id, userDetails.getUser().getId());
+        return ResponseEntity.ok(Map.of("paymentUrl", paymentUrl));
     }
 }

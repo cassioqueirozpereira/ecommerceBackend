@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.springframework.data.domain.Sort;
 import java.util.List;
 
 @Service
@@ -69,7 +70,15 @@ public class ProductService {
         return savedProduct;
     }
     
-    public List<Product> getAllProducts() {
-        return productRepository.findAll();
+    public List<Product> getAllProducts(String category, String sort, String search) {
+        Sort sortSpec = Sort.by(Sort.Direction.DESC, "createdAt"); // default
+        if (sort != null) {
+            if (sort.equalsIgnoreCase("price_asc")) {
+                sortSpec = Sort.by(Sort.Direction.ASC, "basePrice");
+            } else if (sort.equalsIgnoreCase("price_desc")) {
+                sortSpec = Sort.by(Sort.Direction.DESC, "basePrice");
+            }
+        }
+        return productRepository.searchAndFilter(category, search, sortSpec);
     }
 }

@@ -29,12 +29,24 @@ public class OrderItem {
     private Order order;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id", nullable = true)
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "variant_id", nullable = false)
+    @JoinColumn(name = "variant_id", nullable = true)
     private Variant variant;
+
+    @Column(name = "product_name", nullable = false)
+    private String productName;
+
+    @Column(name = "sku")
+    private String sku;
+
+    @Column(name = "variant_name")
+    private String variantName;
+
+    @Column(name = "image_url")
+    private String imageUrl;
 
     @Column(nullable = false)
     private Integer quantity;
