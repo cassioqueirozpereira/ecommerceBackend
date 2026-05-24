@@ -15,8 +15,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findBySlug(String slug);
     boolean existsBySlug(String slug);
 
-    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category c LEFT JOIN FETCH p.variants WHERE " +
-           "(:category IS NULL OR c.slug = :category) AND " +
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category LEFT JOIN FETCH p.variants WHERE " +
+           "(:category IS NULL OR p.category.slug = :category) AND " +
            "(:search IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(p.description) LIKE LOWER(CONCAT('%', :search, '%')))")
     List<Product> searchAndFilter(@Param("category") String category, @Param("search") String search, Sort sort);
 }
