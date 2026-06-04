@@ -39,12 +39,38 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
-    
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Payment> payments = new ArrayList<>();
 
     @Column(name = "idempotency_key", unique = true, length = 100)
     private String idempotencyKey;
+
+    // --- Pix Manual fields ---
+    @Column(name = "pix_receipt_url")
+    private String pixReceiptUrl;
+
+    @Column(name = "payer_name", length = 150)
+    private String payerName;
+
+    @Column(name = "payer_cpf", length = 14)
+    private String payerCpf;
+
+    @Column(name = "payer_phone", length = 20)
+    private String payerPhone;
+
+    // --- Audit trail ---
+    @Column(name = "approved_by")
+    private UUID approvedBy;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "rejected_by")
+    private UUID rejectedBy;
+
+    @Column(name = "rejected_at")
+    private LocalDateTime rejectedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -53,12 +79,12 @@ public class Order {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
+
     public void addItem(OrderItem item) {
         items.add(item);
         item.setOrder(this);
     }
-    
+
     public void addPayment(Payment payment) {
         payments.add(payment);
         payment.setOrder(this);
