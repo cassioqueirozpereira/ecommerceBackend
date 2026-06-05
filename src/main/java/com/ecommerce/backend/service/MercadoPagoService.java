@@ -42,15 +42,21 @@ public class MercadoPagoService {
         try {
             MercadoPagoConfig.setAccessToken(accessToken);
 
-            com.mercadopago.client.payment.PaymentPayerRequest payerRequest = com.mercadopago.client.payment.PaymentPayerRequest.builder()
-                .email(cardDTO.getPayer().getEmail())
-                .identification(
-                    com.mercadopago.client.common.IdentificationRequest.builder()
-                        .type(cardDTO.getPayer().getIdentification().getType())
-                        .number(cardDTO.getPayer().getIdentification().getNumber())
-                        .build()
-                )
-                .build();
+            com.mercadopago.client.common.IdentificationRequest identRequest = null;
+            if (cardDTO.getPayer().getIdentification() != null
+                    && cardDTO.getPayer().getIdentification().getType() != null
+                    && !cardDTO.getPayer().getIdentification().getType().isBlank()) {
+                identRequest = com.mercadopago.client.common.IdentificationRequest.builder()
+                    .type(cardDTO.getPayer().getIdentification().getType())
+                    .number(cardDTO.getPayer().getIdentification().getNumber())
+                    .build();
+            }
+
+            com.mercadopago.client.payment.PaymentPayerRequest payerRequest =
+                com.mercadopago.client.payment.PaymentPayerRequest.builder()
+                    .email(cardDTO.getPayer().getEmail())
+                    .identification(identRequest)
+                    .build();
 
             com.mercadopago.client.payment.PaymentCreateRequest createRequest = com.mercadopago.client.payment.PaymentCreateRequest.builder()
                 .transactionAmount(order.getTotal())

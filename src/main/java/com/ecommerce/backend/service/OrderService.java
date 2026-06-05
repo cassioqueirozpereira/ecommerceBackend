@@ -78,11 +78,10 @@ public class OrderService {
             total = total.add(orderItem.getTotalPrice());
         }
 
-        // Pré-gerar ID para external_reference
-        order.setId(UUID.randomUUID());
         order.setSubtotal(total);
         order.setTotal(total);
-
+        // Save first to get the generated UUID from JPA, then call MP with that ID
+        order.setStatus("PENDING_PAYMENT");
         Payment payment = new Payment();
         payment.setPaymentMethod(dto.getPaymentMethod());
         payment.setAmount(total);
@@ -94,29 +93,48 @@ public class OrderService {
             order.setPayerPhone(dto.getPayerPhone());
             order.setPixReceiptUrl(dto.getPixReceiptUrl());
             payment.setStatus("AWAITING_APPROVAL");
+            order.addPayment(payment);
+            return orderRepository.save(order);
         } else if (dto.getPaymentMethod() == PaymentMethod.MERCADO_PAGO_CARD) {
             if (dto.getCardPayment() == null) {
                 throw new IllegalArgumentException("Card payment details are required for MERCADO_PAGO_CARD");
             }
-            com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.processCardPayment(order, dto.getCardPayment());
-            
-            String status = mpPayment.getStatus();
-            if ("rejected".equalsIgnoreCase(status)) {
-                throw new com.ecommerce.backend.exception.PaymentRejectedException("Pagamento recusado: " + mpPayment.getStatusDetail());
-            } else if ("approved".equalsIgnoreCase(status)) {
-                order.setStatus("PAID");
-                payment.setStatus("APPROVED");
-            } else {
-                order.setStatus("PENDING_PAYMENT");
-                payment.setStatus("PENDING");
+            // Save order first to get DB-generated UUID (needed as externalReference)
+            payment.setStatus("PENDING");
+            order.addPayment(payment);
+            Order savedOrder = orderRepository.save(order);
+
+            try {
+                com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.processCardPayment(savedOrder, dto.getCardPayment());
+                String status = mpPayment.getStatus();
+                if ("rejected".equalsIgnoreCase(status)) {
+                    // Update status but keep order for traceability
+                    savedOrder.setStatus("FAILED");
+                    savedOrder.getPayments().forEach(p -> p.setStatus("REJECTED"));
+                    orderRepository.save(savedOrder);
+                    throw new com.ecommerce.backend.exception.PaymentRejectedException("Pagamento recusado: " + mpPayment.getStatusDetail());
+                } else if ("approved".equalsIgnoreCase(status)) {
+                    savedOrder.setStatus("PAID");
+                    savedOrder.getPayments().forEach(p -> p.setStatus("APPROVED"));
+                } else {
+                    // pending / in_process: keep PENDING_PAYMENT
+                    savedOrder.setStatus("PENDING_PAYMENT");
+                }
+                return orderRepository.save(savedOrder);
+            } catch (com.ecommerce.backend.exception.PaymentRejectedException e) {
+                throw e;
+            } catch (Exception e) {
+                savedOrder.setStatus("FAILED");
+                savedOrder.getPayments().forEach(p -> p.setStatus("FAILED"));
+                orderRepository.save(savedOrder);
+                throw new RuntimeException("Erro ao processar pagamento: " + e.getMessage(), e);
             }
         } else {
             order.setStatus("PENDING_PAYMENT");
             payment.setStatus("PENDING");
+            order.addPayment(payment);
+            return orderRepository.save(order);
         }
-
-        order.addPayment(payment);
-        return orderRepository.save(order);
     }
 
 
