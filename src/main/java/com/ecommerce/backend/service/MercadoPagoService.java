@@ -33,37 +33,41 @@ public class MercadoPagoService {
     @Value("${mercadopago.access-token}")
     private String accessToken;
 
-    public String createCheckoutPreference(Order order) {
+    public com.mercadopago.resources.payment.Payment processCardPayment(Order order, com.ecommerce.backend.dto.CardPaymentDTO cardDTO) {
         if (accessToken == null || accessToken.trim().isEmpty() || accessToken.contains("your_access_token")) {
-            logger.info("Mercado Pago access token not configured. Returning simulated sandbox checkout URL.");
-            return "https://www.mercadopago.com.br/sandbox/payments/simulated-checkout?orderId=" + order.getId();
+            logger.error("Mercado Pago access token not configured.");
+            throw new RuntimeException("Configuração do Mercado Pago ausente. Contate o suporte.");
         }
 
         try {
             MercadoPagoConfig.setAccessToken(accessToken);
 
-            List<PreferenceItemRequest> items = order.getItems().stream().map(item -> 
-                PreferenceItemRequest.builder()
-                    .id(item.getId().toString())
-                    .title(item.getProductName() + " - " + item.getVariantName())
-                    .quantity(item.getQuantity())
-                    .unitPrice(item.getUnitPrice())
-                    .build()
-            ).collect(Collectors.toList());
-
-            PreferenceRequest preferenceRequest = PreferenceRequest.builder()
-                .items(items)
-                .externalReference(order.getId().toString())
-                .notificationUrl("https://your-domain.com/api/webhooks/mercadopago")
+            com.mercadopago.client.payment.PaymentPayerRequest payerRequest = com.mercadopago.client.payment.PaymentPayerRequest.builder()
+                .email(cardDTO.getPayer().getEmail())
+                .identification(
+                    com.mercadopago.client.common.IdentificationRequest.builder()
+                        .type(cardDTO.getPayer().getIdentification().getType())
+                        .number(cardDTO.getPayer().getIdentification().getNumber())
+                        .build()
+                )
                 .build();
 
-            PreferenceClient client = new PreferenceClient();
-            Preference preference = client.create(preferenceRequest);
+            com.mercadopago.client.payment.PaymentCreateRequest createRequest = com.mercadopago.client.payment.PaymentCreateRequest.builder()
+                .transactionAmount(order.getTotal())
+                .token(cardDTO.getToken())
+                .description("Order " + order.getId().toString())
+                .installments(cardDTO.getInstallments())
+                .paymentMethodId(cardDTO.getPaymentMethodId())
+                .issuerId(cardDTO.getIssuerId())
+                .payer(payerRequest)
+                .externalReference(order.getId().toString())
+                .build();
 
-            return preference.getInitPoint();
+            PaymentClient client = new PaymentClient();
+            return client.create(createRequest);
         } catch (Exception e) {
-            logger.error("Error creating Mercado Pago checkout preference: ", e);
-            return "https://www.mercadopago.com.br/sandbox/payments/simulated-checkout?orderId=" + order.getId();
+            logger.error("Error creating Mercado Pago card payment: ", e);
+            throw new RuntimeException("Falha ao processar pagamento com cartão", e);
         }
     }
 

@@ -37,15 +37,6 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(order);
     }
 
-    @GetMapping("/{id}/pay")
-    public ResponseEntity<Map<String, String>> getPaymentLink(
-            @PathVariable UUID id,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-
-        String paymentUrl = orderService.getPaymentLink(id, userDetails.getUser().getId());
-        return ResponseEntity.ok(Map.of("paymentUrl", paymentUrl));
-    }
-
     // --- Admin endpoints ---
 
     @GetMapping("/admin/pending-pix")

@@ -78,6 +78,8 @@ public class OrderService {
             total = total.add(orderItem.getTotalPrice());
         }
 
+        // Pré-gerar ID para external_reference
+        order.setId(UUID.randomUUID());
         order.setSubtotal(total);
         order.setTotal(total);
 
@@ -92,6 +94,22 @@ public class OrderService {
             order.setPayerPhone(dto.getPayerPhone());
             order.setPixReceiptUrl(dto.getPixReceiptUrl());
             payment.setStatus("AWAITING_APPROVAL");
+        } else if (dto.getPaymentMethod() == PaymentMethod.MERCADO_PAGO_CARD) {
+            if (dto.getCardPayment() == null) {
+                throw new IllegalArgumentException("Card payment details are required for MERCADO_PAGO_CARD");
+            }
+            com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.processCardPayment(order, dto.getCardPayment());
+            
+            String status = mpPayment.getStatus();
+            if ("rejected".equalsIgnoreCase(status)) {
+                throw new com.ecommerce.backend.exception.PaymentRejectedException("Pagamento recusado: " + mpPayment.getStatusDetail());
+            } else if ("approved".equalsIgnoreCase(status)) {
+                order.setStatus("PAID");
+                payment.setStatus("APPROVED");
+            } else {
+                order.setStatus("PENDING_PAYMENT");
+                payment.setStatus("PENDING");
+            }
         } else {
             order.setStatus("PENDING_PAYMENT");
             payment.setStatus("PENDING");
@@ -101,15 +119,6 @@ public class OrderService {
         return orderRepository.save(order);
     }
 
-    @Transactional(readOnly = true)
-    public String getPaymentLink(UUID orderId, UUID userId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
-        if (!order.getUser().getId().equals(userId)) {
-            throw new SecurityException("Unauthorized access to this order");
-        }
-        return mercadoPagoService.createCheckoutPreference(order);
-    }
 
     @Transactional(readOnly = true)
     public List<Order> getPendingPixOrders() {

@@ -18,6 +18,10 @@ public class OrderRequestDTO {
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;
 
+    // --- Cartão de Crédito (required only when paymentMethod = MERCADO_PAGO_CARD) ---
+    @Valid
+    private CardPaymentDTO cardPayment;
+
     // --- Pix Manual fields (required only when paymentMethod = PIX_MANUAL) ---
     private String payerName;
     private String payerCpf;
