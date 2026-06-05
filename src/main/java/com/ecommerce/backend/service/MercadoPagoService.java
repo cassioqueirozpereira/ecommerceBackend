@@ -71,9 +71,28 @@ public class MercadoPagoService {
 
             PaymentClient client = new PaymentClient();
             return client.create(createRequest);
+        } catch (com.mercadopago.exceptions.MPApiException e) {
+            logger.error("MP API Exception creating card payment: status={}, content={}", e.getStatusCode(), e.getApiResponse().getContent());
+            String content = e.getApiResponse().getContent();
+            String code = "unknown_api_error";
+            
+            // Try to extract the cause code if present
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile("\"code\"\\s*:\\s*\"?([a-zA-Z0-9]+)\"?");
+            java.util.regex.Matcher m = p.matcher(content);
+            if (m.find()) {
+                code = "api_" + m.group(1); // prefix with api_ to distinguish from cc_rejected
+            } else if (content.contains("invalid_cvv") || content.contains("security_code")) {
+                code = "cc_rejected_bad_filled_cvv";
+            }
+            
+            throw new com.ecommerce.backend.exception.PaymentRejectedException(code, "Erro na validação do pagamento: " + code);
+            
+        } catch (com.mercadopago.exceptions.MPException e) {
+            logger.error("MP Exception creating card payment: ", e);
+            throw new RuntimeException("Falha de comunicação com o Mercado Pago", e);
         } catch (Exception e) {
-            logger.error("Error creating Mercado Pago card payment: ", e);
-            throw new RuntimeException("Falha ao processar pagamento com cartão", e);
+            logger.error("Unexpected error creating Mercado Pago card payment: ", e);
+            throw new RuntimeException("Falha inesperada ao processar pagamento com cartão", e);
         }
     }
 

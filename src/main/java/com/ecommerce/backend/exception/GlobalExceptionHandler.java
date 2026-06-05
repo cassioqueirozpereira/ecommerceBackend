@@ -54,6 +54,12 @@ public class GlobalExceptionHandler {
             case "cc_rejected_max_attempts" -> "Número máximo de tentativas atingido.";
             case "cc_rejected_card_disabled" -> "Cartão desativado. Entre em contato com seu banco.";
             case "cc_rejected_duplicated_payment" -> "Pagamento duplicado.";
+            case "api_E301", "api_316" -> "Número do cartão inválido.";
+            case "api_E302", "api_224" -> "Código de segurança inválido.";
+            case "api_325", "api_326", "api_208", "api_209" -> "Data de validade inválida.";
+            case "api_324", "api_322", "api_323", "api_212", "api_213", "api_214" -> "Documento do titular inválido.";
+            case "api_221" -> "Nome do titular inválido.";
+            case "api_205" -> "Digite o número do cartão.";
             default -> "Não foi possível processar o pagamento.";
         };
 
