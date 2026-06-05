@@ -39,6 +39,9 @@ public class Payment {
     @Column(name = "external_reference")
     private String externalReference;
 
+    @Column(name = "payment_detail")
+    private String paymentDetail;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
 

@@ -107,12 +107,16 @@ public class OrderService {
             try {
                 com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.processCardPayment(savedOrder, dto.getCardPayment());
                 String status = mpPayment.getStatus();
+                String statusDetail = mpPayment.getStatusDetail();
+                
+                savedOrder.getPayments().forEach(p -> p.setPaymentDetail(statusDetail));
+                
                 if ("rejected".equalsIgnoreCase(status)) {
                     // Update status but keep order for traceability
                     savedOrder.setStatus("FAILED");
                     savedOrder.getPayments().forEach(p -> p.setStatus("REJECTED"));
                     orderRepository.save(savedOrder);
-                    throw new com.ecommerce.backend.exception.PaymentRejectedException("Pagamento recusado: " + mpPayment.getStatusDetail());
+                    throw new com.ecommerce.backend.exception.PaymentRejectedException(statusDetail, "Pagamento recusado: " + statusDetail);
                 } else if ("approved".equalsIgnoreCase(status)) {
                     savedOrder.setStatus("PAID");
                     savedOrder.getPayments().forEach(p -> p.setStatus("APPROVED"));

@@ -11,6 +11,8 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.ecommerce.backend.exception.PaymentRejectedException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -36,6 +38,31 @@ public class GlobalExceptionHandler {
         });
 
         problemDetail.setProperty("invalid_params", errors);
+        return problemDetail;
+    }
+
+    @ExceptionHandler(PaymentRejectedException.class)
+    public ProblemDetail handlePaymentRejectedException(PaymentRejectedException ex) {
+        String translatedMessage = switch (ex.getCode() != null ? ex.getCode() : "") {
+            case "cc_rejected_bad_filled_cvv" -> "Código de segurança inválido.";
+            case "cc_rejected_bad_filled_date" -> "Data de validade inválida.";
+            case "cc_rejected_bad_filled_other" -> "Dados do cartão inválidos.";
+            case "cc_rejected_insufficient_amount" -> "Limite insuficiente.";
+            case "cc_rejected_call_for_authorize" -> "Cartão não autorizado. Entre em contato com seu banco.";
+            case "cc_rejected_high_risk" -> "Transação recusada por segurança.";
+            case "cc_rejected_blacklist" -> "Pagamento não autorizado.";
+            case "cc_rejected_max_attempts" -> "Número máximo de tentativas atingido.";
+            case "cc_rejected_card_disabled" -> "Cartão desativado. Entre em contato com seu banco.";
+            case "cc_rejected_duplicated_payment" -> "Pagamento duplicado.";
+            default -> "Não foi possível processar o pagamento.";
+        };
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, translatedMessage);
+        problemDetail.setTitle("Payment Rejected");
+        problemDetail.setType(URI.create("https://ecommerce.com/errors/payment-rejected"));
+        problemDetail.setProperty("code", ex.getCode());
+        problemDetail.setProperty("message", translatedMessage);
+        
         return problemDetail;
     }
 
