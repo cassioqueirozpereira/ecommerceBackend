@@ -44,10 +44,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PaymentRejectedException.class)
     public ProblemDetail handlePaymentRejectedException(PaymentRejectedException ex) {
         String translatedMessage = switch (ex.getCode() != null ? ex.getCode() : "") {
-            case "cc_rejected_bad_filled_cvv" -> "Código de segurança inválido.";
+            case "cc_rejected_bad_filled_cvv", "cc_rejected_bad_filled_security_code" -> "Código de segurança inválido.";
             case "cc_rejected_bad_filled_date" -> "Data de validade inválida.";
+            case "cc_rejected_bad_filled_card_number" -> "Número do cartão inválido.";
             case "cc_rejected_bad_filled_other" -> "Dados do cartão inválidos.";
-            case "cc_rejected_insufficient_amount" -> "Limite insuficiente.";
+            case "cc_rejected_insufficient_amount" -> "Saldo insuficiente.";
             case "cc_rejected_call_for_authorize" -> "Cartão não autorizado. Entre em contato com seu banco.";
             case "cc_rejected_high_risk" -> "Transação recusada por segurança.";
             case "cc_rejected_blacklist" -> "Pagamento não autorizado.";
@@ -60,7 +61,7 @@ public class GlobalExceptionHandler {
             case "api_324", "api_322", "api_323", "api_212", "api_213", "api_214" -> "Documento do titular inválido.";
             case "api_221" -> "Nome do titular inválido.";
             case "api_205" -> "Digite o número do cartão.";
-            default -> "Não foi possível processar o pagamento.";
+            default -> "Não foi possível processar o pagamento. (Erro: " + (ex.getCode() != null ? ex.getCode() : "desconhecido") + ")";
         };
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, translatedMessage);
