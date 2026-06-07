@@ -61,7 +61,7 @@ public class GlobalExceptionHandler {
             case "api_324", "api_322", "api_323", "api_212", "api_213", "api_214" -> "Documento do titular inválido.";
             case "api_221" -> "Nome do titular inválido.";
             case "api_205" -> "Digite o número do cartão.";
-            default -> "Não foi possível processar o pagamento. (Erro: " + (ex.getCode() != null ? ex.getCode() : "desconhecido") + ")";
+            default -> "Não foi possível processar o pagamento.";
         };
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, translatedMessage);
