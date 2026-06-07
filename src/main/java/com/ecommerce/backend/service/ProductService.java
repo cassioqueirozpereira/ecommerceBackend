@@ -70,6 +70,69 @@ public class ProductService {
         return savedProduct;
     }
     
+    @Transactional
+    public Product updateProduct(UUID id, ProductDTO productDTO) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        if (!product.getSlug().equals(productDTO.getSlug()) && productRepository.existsBySlug(productDTO.getSlug())) {
+            throw new IllegalArgumentException("Product with this slug already exists");
+        }
+
+        product.setName(productDTO.getName());
+        product.setSlug(productDTO.getSlug());
+        product.setDescription(productDTO.getDescription());
+        product.setBasePrice(productDTO.getBasePrice());
+        product.setPromotionalPrice(productDTO.getPromotionalPrice());
+        product.setImages(productDTO.getImages());
+
+        if (productDTO.getCategory() != null && productDTO.getCategory().getId() != null) {
+            product.setCategory(categoryRepository.findById(productDTO.getCategory().getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Category not found")));
+        }
+
+        if (productDTO.getVariants() != null) {
+            // Remove variants not present in DTO
+            List<String> incomingSkus = productDTO.getVariants().stream()
+                    .map(v -> v.getSku())
+                    .toList();
+            
+            product.getVariants().removeIf(v -> !incomingSkus.contains(v.getSku()));
+
+            // Update or add
+            for (var vDto : productDTO.getVariants()) {
+                Variant existing = product.getVariants().stream()
+                        .filter(v -> v.getSku().equals(vDto.getSku()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (existing != null) {
+                    existing.setName(vDto.getName());
+                    existing.setPrice(vDto.getPrice() != null ? vDto.getPrice() : product.getBasePrice());
+                    existing.setStock(vDto.getStock() != null ? vDto.getStock() : 0);
+                } else {
+                    Variant newVariant = new Variant();
+                    newVariant.setProduct(product);
+                    newVariant.setName(vDto.getName());
+                    newVariant.setSku(vDto.getSku() != null ? vDto.getSku() : UUID.randomUUID().toString());
+                    newVariant.setPrice(vDto.getPrice() != null ? vDto.getPrice() : product.getBasePrice());
+                    newVariant.setStock(vDto.getStock() != null ? vDto.getStock() : 0);
+                    product.addVariant(newVariant);
+                }
+            }
+        }
+
+        return productRepository.save(product);
+    }
+
+    @Transactional
+    public void deleteProduct(UUID id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        product.setActive(false);
+        productRepository.save(product);
+    }
+    
     public List<Product> getAllProducts(String category, String sort, String search) {
         Sort sortSpec = Sort.by(Sort.Direction.DESC, "createdAt"); // default
         if (sort != null) {
@@ -79,6 +142,18 @@ public class ProductService {
                 sortSpec = Sort.by(Sort.Direction.DESC, "basePrice");
             }
         }
-        return productRepository.searchAndFilter(category, search, sortSpec);
+        List<Product> products = productRepository.searchAndFilter(category, search, sortSpec);
+        sortAvailableFirst(products);
+        return products;
+    }
+
+    private void sortAvailableFirst(List<Product> products) {
+        products.sort((p1, p2) -> {
+            boolean p1InStock = p1.getVariants().stream().mapToInt(Variant::getStock).sum() > 0;
+            boolean p2InStock = p2.getVariants().stream().mapToInt(Variant::getStock).sum() > 0;
+            if (p1InStock && !p2InStock) return -1;
+            if (!p1InStock && p2InStock) return 1;
+            return 0;
+        });
     }
 }

@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.ecommerce.backend.exception.PaymentRejectedException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -73,9 +74,34 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        String translatedMessage = "Ocorreu um erro de integridade de dados.";
+
+        if (message != null) {
+            String lowerMsg = message.toLowerCase();
+            if (lowerMsg.contains("duplicate key") || lowerMsg.contains("unique constraint")) {
+                if (lowerMsg.contains("sku")) {
+                    translatedMessage = "Já existe um produto ou variação com este SKU. Por favor, utilize um SKU único.";
+                } else if (lowerMsg.contains("slug")) {
+                    translatedMessage = "Já existe um produto com este slug/URL. Por favor, escolha um nome diferente.";
+                } else {
+                    translatedMessage = "Já existe um registro com estes dados únicos no sistema.";
+                }
+            }
+        }
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, translatedMessage);
+        problemDetail.setTitle("Conflict");
+        problemDetail.setType(URI.create("https://ecommerce.com/errors/conflict"));
+        problemDetail.setProperty("message", translatedMessage);
+        return problemDetail;
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleAllOtherExceptions(Exception ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Ocorreu um erro inesperado!");
         problemDetail.setTitle("Internal Server Error");
         problemDetail.setType(URI.create("https://ecommerce.com/errors/internal-server-error"));
         // Don't expose internal exception message directly in production
